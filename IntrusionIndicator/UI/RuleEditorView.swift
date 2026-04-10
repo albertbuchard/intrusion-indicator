@@ -3,6 +3,7 @@ import SwiftUI
 struct RuleEditorView: View {
     @Bindable var rule: RuleRecord
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     @State private var bundleIdentifiersText = ""
     @State private var processPatternsText = ""
@@ -10,6 +11,7 @@ struct RuleEditorView: View {
     @State private var portsText = ""
     @State private var endpointsText = ""
     @State private var serviceKeysText = ""
+    @State private var permissionKindsText = ""
 
     var body: some View {
         Form {
@@ -30,8 +32,7 @@ struct RuleEditorView: View {
                     Text(conditionType.rawValue).tag(conditionType)
                 }
             }
-            TextField("Permission Kinds", text: .constant(rule.parameters.permissionKinds.map(\.title).joined(separator: ", ")))
-                .disabled(true)
+            TextField("Permission Kinds", text: $permissionKindsText)
             TextField("Bundle IDs", text: $bundleIdentifiersText)
             TextField("Process Patterns", text: $processPatternsText)
             TextField("Launch Agent Patterns", text: $launchAgentPatternsText)
@@ -62,6 +63,7 @@ struct RuleEditorView: View {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") {
                     apply()
+                    try? modelContext.save()
                     dismiss()
                 }
             }
@@ -76,6 +78,7 @@ struct RuleEditorView: View {
         portsText = rule.parameters.ports.map(String.init).joined(separator: ", ")
         endpointsText = rule.parameters.endpoints.joined(separator: ", ")
         serviceKeysText = rule.parameters.serviceKeys.joined(separator: ", ")
+        permissionKindsText = rule.parameters.permissionKinds.map(\.title).joined(separator: ", ")
     }
 
     private func apply() {
@@ -85,6 +88,14 @@ struct RuleEditorView: View {
         rule.parameters.ports = splitCSV(portsText).compactMap(Int.init)
         rule.parameters.endpoints = splitCSV(endpointsText)
         rule.parameters.serviceKeys = splitCSV(serviceKeysText)
+        rule.parameters.permissionKinds = parsePermissionKinds(permissionKindsText)
+    }
+
+    private func parsePermissionKinds(_ text: String) -> [PermissionKind] {
+        let requestedKinds = splitCSV(text).map { $0.lowercased() }
+        return PermissionKind.allCases.filter { kind in
+            requestedKinds.contains(kind.rawValue.lowercased()) || requestedKinds.contains(kind.title.lowercased())
+        }
     }
 
     private func splitCSV(_ text: String) -> [String] {

@@ -14,6 +14,7 @@ struct RulesSettingsView: View {
     @State private var newTrustedBundleID = ""
     @State private var newTrustedProcessName = ""
     @State private var newTrustedEndpoint = ""
+    @State private var isAddingRule = false
     private let seededRuleCount = RuleSeeder.seededRules().count
 
     init() {}
@@ -31,6 +32,14 @@ struct RulesSettingsView: View {
         .frame(minWidth: 980, minHeight: 760)
         .sheet(item: $selectedRule) { rule in
             RuleEditorView(rule: rule)
+        }
+        .sheet(isPresented: $isAddingRule) {
+            AddRuleView(nextSortOrder: nextSortOrder) { newRule in
+                modelContext.insert(newRule)
+                try? modelContext.save()
+                selectedRuleID = newRule.id
+                isAddingRule = false
+            }
         }
     }
 
@@ -140,9 +149,14 @@ struct RulesSettingsView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Table(rules, selection: $selectedRuleID) {
                     TableColumn("Enabled") { rule in
-                        @Bindable var rule = rule
-                        Toggle("", isOn: $rule.enabled)
-                            .labelsHidden()
+                        Toggle("", isOn: Binding(
+                            get: { rule.enabled },
+                            set: { newValue in
+                                rule.enabled = newValue
+                                try? modelContext.save()
+                            }
+                        ))
+                        .labelsHidden()
                     }
                     .width(70)
 
@@ -186,6 +200,17 @@ struct RulesSettingsView: View {
                 .padding(.bottom, 4)
 
                 HStack {
+                    Button("Add Custom Rule") {
+                        isAddingRule = true
+                    }
+
+                    Button("Delete Selected Rule") {
+                        guard let selected = rules.first(where: { $0.id == selectedRuleID }) else { return }
+                        modelContext.delete(selected)
+                        try? modelContext.save()
+                    }
+                    .disabled(selectedRuleID == nil)
+
                     Button("Edit Selected Rule") {
                         selectedRule = rules.first(where: { $0.id == selectedRuleID })
                     }
@@ -200,5 +225,9 @@ struct RulesSettingsView: View {
             }
             .padding(.top, 8)
         }
+    }
+
+    private var nextSortOrder: Int {
+        (rules.map(\.sortOrder).max() ?? 0) + 10
     }
 }

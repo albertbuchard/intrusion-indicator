@@ -2,31 +2,47 @@ import Foundation
 import SwiftData
 
 enum RuleSeeder {
+    static let customRuleSource = "Custom Rule"
+
     static func seedIfNeeded(in context: ModelContext) throws {
-        let ruleCount = try context.fetchCount(FetchDescriptor<RuleRecord>())
-        if ruleCount > 0 {
-            return
+        let existingRules = try context.fetch(FetchDescriptor<RuleRecord>())
+        try seedOrSyncRules(existingRules: existingRules, in: context)
+    }
+
+    static func seedOrSyncRules(existingRules: [RuleRecord], in context: ModelContext) throws {
+        var existingByID: [UUID: RuleRecord] = [:]
+        for existingRule in existingRules {
+            existingByID[existingRule.id] = existingRule
         }
+        var inserted = false
 
         for rule in seededRules() {
-            context.insert(
-                RuleRecord(
-                    id: rule.id,
-                    enabled: rule.enabled,
-                    name: rule.name,
-                    category: rule.category,
-                    severity: rule.severity,
-                    conditionType: rule.conditionType,
-                    parameters: rule.parameters,
-                    message: rule.message,
-                    remediation: rule.remediation,
-                    seedSource: rule.seedSource,
-                    sortOrder: rule.sortOrder
-                )
-            )
+            guard existingByID[rule.id] == nil else {
+                continue
+            }
+            context.insert(ruleRecord(from: rule))
+            inserted = true
         }
 
-        try context.save()
+        if inserted {
+            try context.save()
+        }
+    }
+
+    private static func ruleRecord(from definition: RuleDefinition) -> RuleRecord {
+        RuleRecord(
+            id: definition.id,
+            enabled: definition.enabled,
+            name: definition.name,
+            category: definition.category,
+            severity: definition.severity,
+            conditionType: definition.conditionType,
+            parameters: definition.parameters,
+            message: definition.message,
+            remediation: definition.remediation,
+            seedSource: definition.seedSource,
+            sortOrder: definition.sortOrder
+        )
     }
 
     static func seededRules() -> [RuleDefinition] {
