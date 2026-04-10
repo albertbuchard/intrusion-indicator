@@ -25,6 +25,7 @@ struct IntrusionIndicatorApp: App {
         _appState = StateObject(wrappedValue: initialState)
         AppBootstrap.onLaunch = {
             initialState.bootstrap()
+            ScreenshotCaptureRunner.runIfRequested(using: initialState)
         }
     }
 

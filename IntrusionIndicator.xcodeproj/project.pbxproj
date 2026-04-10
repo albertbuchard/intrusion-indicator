@@ -36,6 +36,7 @@
 		A0000000000000000000001B /* ScreenshotHarnessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000001E /* ScreenshotHarnessView.swift */; };
 		A0000000000000000000001C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000001F /* Assets.xcassets */; };
 		A00000000000000000000020 /* CommandDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000020 /* CommandDiagnostics.swift */; };
+		A00000000000000000000021 /* ScreenshotCaptureRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000021 /* ScreenshotCaptureRunner.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -88,6 +89,7 @@
 		B0000000000000000000001E /* ScreenshotHarnessView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotHarnessView.swift; sourceTree = "<group>"; };
 		B0000000000000000000001F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B00000000000000000000020 /* CommandDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandDiagnostics.swift; sourceTree = "<group>"; };
+		B00000000000000000000021 /* ScreenshotCaptureRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotCaptureRunner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -136,6 +138,7 @@
 				B00000000000000000000001 /* AppDelegate.swift */,
 				B00000000000000000000002 /* IntrusionIndicatorApp.swift */,
 				B0000000000000000000001A /* Info.plist */,
+				B00000000000000000000021 /* ScreenshotCaptureRunner.swift */,
 				G00000000000000000000003 /* Models */,
 				G00000000000000000000004 /* Collectors */,
 				G00000000000000000000005 /* Engine */,
@@ -392,6 +395,7 @@
 				A00000000000000000000020 /* CommandDiagnostics.swift in Sources */,
 				A00000000000000000000010 /* ShellCommandRunner.swift in Sources */,
 				A0000000000000000000001A /* ScreenshotFixture.swift in Sources */,
+				A00000000000000000000021 /* ScreenshotCaptureRunner.swift in Sources */,
 				A00000000000000000000011 /* StatusMenuContentView.swift in Sources */,
 				A00000000000000000000012 /* RuleEditorView.swift in Sources */,
 				A00000000000000000000013 /* RulesSettingsView.swift in Sources */,
@@ -567,6 +571,7 @@
 				SDKROOT = macosx;
 				SWIFT_VERSION = 6.3;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/IntrusionIndicator.app/Contents/MacOS/IntrusionIndicator";
+				USES_XCTRUNNER = NO;
 			};
 			name = Debug;
 		};
@@ -587,6 +592,7 @@
 				SDKROOT = macosx;
 				SWIFT_VERSION = 6.3;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/IntrusionIndicator.app/Contents/MacOS/IntrusionIndicator";
+				USES_XCTRUNNER = NO;
 			};
 			name = Release;
 		};
