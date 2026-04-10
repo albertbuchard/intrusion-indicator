@@ -37,6 +37,7 @@
 		A0000000000000000000001C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000001F /* Assets.xcassets */; };
 		A00000000000000000000020 /* CommandDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000020 /* CommandDiagnostics.swift */; };
 		A00000000000000000000021 /* ScreenshotCaptureRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000021 /* ScreenshotCaptureRunner.swift */; };
+		A00000000000000000000022 /* AddRuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000022 /* AddRuleView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -90,6 +91,7 @@
 		B0000000000000000000001F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B00000000000000000000020 /* CommandDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandDiagnostics.swift; sourceTree = "<group>"; };
 		B00000000000000000000021 /* ScreenshotCaptureRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotCaptureRunner.swift; sourceTree = "<group>"; };
+		B00000000000000000000022 /* AddRuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddRuleView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -195,6 +197,7 @@
 			isa = PBXGroup;
 			children = (
 				B00000000000000000000011 /* StatusMenuContentView.swift */,
+				B00000000000000000000022 /* AddRuleView.swift */,
 				B00000000000000000000012 /* RuleEditorView.swift */,
 				B00000000000000000000013 /* RulesSettingsView.swift */,
 				B0000000000000000000001E /* ScreenshotHarnessView.swift */,
@@ -396,6 +399,7 @@
 				A00000000000000000000010 /* ShellCommandRunner.swift in Sources */,
 				A0000000000000000000001A /* ScreenshotFixture.swift in Sources */,
 				A00000000000000000000021 /* ScreenshotCaptureRunner.swift in Sources */,
+				A00000000000000000000022 /* AddRuleView.swift in Sources */,
 				A00000000000000000000011 /* StatusMenuContentView.swift in Sources */,
 				A00000000000000000000012 /* RuleEditorView.swift in Sources */,
 				A00000000000000000000013 /* RulesSettingsView.swift in Sources */,
