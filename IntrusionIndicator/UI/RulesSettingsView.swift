@@ -15,6 +15,8 @@ struct RulesSettingsView: View {
     @State private var newTrustedProcessName = ""
     @State private var newTrustedEndpoint = ""
     @State private var isAddingRule = false
+    @State private var showingResetConfirmation = false
+    @State private var repairMessage: String?
     private let seededRuleCount = RuleSeeder.seededRules().count
 
     init() {}
@@ -41,6 +43,18 @@ struct RulesSettingsView: View {
                 isAddingRule = false
             }
         }
+        .confirmationDialog(
+            "Reset rules to defaults?",
+            isPresented: $showingResetConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Reset to Defaults", role: .destructive) {
+                resetRulesToDefaults()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes custom rules and restores only seeded baseline rules.")
+        }
     }
 
     private var header: some View {
@@ -60,6 +74,20 @@ struct RulesSettingsView: View {
                 .foregroundStyle(.secondary)
             Text("Loaded rules: \(rules.count) total · \(seededRuleCount) seeded baseline rules")
                 .foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                Button("Repair Rules Database") {
+                    repairRulesDatabase()
+                }
+                Button("Reset to Defaults") {
+                    showingResetConfirmation = true
+                }
+                .foregroundStyle(.red)
+            }
+            if let repairMessage {
+                Text(repairMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -207,6 +235,7 @@ struct RulesSettingsView: View {
                     Button("Delete Selected Rule") {
                         guard let selected = rules.first(where: { $0.id == selectedRuleID }) else { return }
                         modelContext.delete(selected)
+                        selectedRuleID = nil
                         try? modelContext.save()
                     }
                     .disabled(selectedRuleID == nil)
@@ -229,5 +258,38 @@ struct RulesSettingsView: View {
 
     private var nextSortOrder: Int {
         (rules.map(\.sortOrder).max() ?? 0) + 10
+    }
+
+    private func repairRulesDatabase() {
+        do {
+            let result = try RuleSeeder.repair(in: modelContext)
+            if result.insertedSeedRules == 0 && result.removedDuplicateRules == 0 {
+                repairMessage = "Rules database is already synchronized."
+            } else {
+                var updates: [String] = []
+                if result.insertedSeedRules > 0 {
+                    updates.append("restored \(result.insertedSeedRules) missing seeded rules")
+                }
+                if result.removedDuplicateRules > 0 {
+                    updates.append("removed \(result.removedDuplicateRules) duplicates")
+                }
+                repairMessage = "Repair complete: \(updates.joined(separator: ", "))."
+            }
+            selectedRule = nil
+            selectedRuleID = nil
+        } catch {
+            repairMessage = "Repair failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func resetRulesToDefaults() {
+        do {
+            try RuleSeeder.resetToDefaults(in: modelContext)
+            repairMessage = "Rules reset to built-in defaults."
+            selectedRule = nil
+            selectedRuleID = nil
+        } catch {
+            repairMessage = "Reset failed: \(error.localizedDescription)"
+        }
     }
 }

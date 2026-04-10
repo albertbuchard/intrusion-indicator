@@ -2,31 +2,116 @@ import Foundation
 import SwiftData
 
 enum RuleSeeder {
+    static let seededRuleSource = "User-provided guidance"
     static let customRuleSource = "Custom Rule"
+    struct RepairResult: Sendable {
+        let insertedSeedRules: Int
+        let removedDuplicateRules: Int
+    }
 
     static func seedIfNeeded(in context: ModelContext) throws {
         let existingRules = try context.fetch(FetchDescriptor<RuleRecord>())
-        try seedOrSyncRules(existingRules: existingRules, in: context)
+        _ = try seedOrSyncRules(existingRules: existingRules, in: context)
     }
 
-    static func seedOrSyncRules(existingRules: [RuleRecord], in context: ModelContext) throws {
+    static func repair(in context: ModelContext) throws -> RepairResult {
+        let removedDuplicateRules = try compactDuplicateRules(in: context)
+        let existingRules = try context.fetch(FetchDescriptor<RuleRecord>())
+        let insertedSeedRules = try seedOrSyncRules(existingRules: existingRules, in: context)
+        return RepairResult(insertedSeedRules: insertedSeedRules, removedDuplicateRules: removedDuplicateRules)
+    }
+
+    static func resetToDefaults(in context: ModelContext) throws {
+        for rule in try context.fetch(FetchDescriptor<RuleRecord>()) {
+            context.delete(rule)
+        }
+        try context.save()
+        _ = try seedOrSyncRules(existingRules: [], in: context)
+    }
+
+    static func seedOrSyncRules(existingRules: [RuleRecord], in context: ModelContext) throws -> Int {
         var existingByID: [UUID: RuleRecord] = [:]
         for existingRule in existingRules {
             existingByID[existingRule.id] = existingRule
         }
-        var inserted = false
+        var insertedCount = 0
+        var updatedSeededCount = 0
 
         for rule in seededRules() {
-            guard existingByID[rule.id] == nil else {
+            guard let existing = existingByID[rule.id] else {
+                context.insert(ruleRecord(from: rule))
+                insertedCount += 1
                 continue
             }
-            context.insert(ruleRecord(from: rule))
-            inserted = true
+
+            if updateSeedRuleIfNeeded(rule, existingRule: existing) {
+                updatedSeededCount += 1
+            }
         }
 
-        if inserted {
+        if insertedCount > 0 || updatedSeededCount > 0 {
             try context.save()
         }
+
+        return insertedCount
+    }
+
+    private static func compactDuplicateRules(in context: ModelContext) throws -> Int {
+        let existingRules = try context.fetch(FetchDescriptor<RuleRecord>())
+        var keptBySignature: [RuleSignature: RuleRecord] = [:]
+        var removedCount = 0
+        let sortedRules = existingRules.sorted { ruleA, ruleB in
+            shouldPrefer(ruleA, over: ruleB)
+        }
+
+        for rule in sortedRules {
+            let signature = signature(for: rule)
+            if let existing = keptBySignature[signature] {
+                if shouldPrefer(existing, over: rule) {
+                    context.delete(rule)
+                } else {
+                    context.delete(existing)
+                    keptBySignature[signature] = rule
+                }
+                removedCount += 1
+            } else {
+                keptBySignature[signature] = rule
+            }
+        }
+
+        if removedCount > 0 {
+            try context.save()
+        }
+
+        return removedCount
+    }
+
+    private static func updateSeedRuleIfNeeded(_ rule: RuleDefinition, existingRule: RuleRecord) -> Bool {
+        let changed =
+            existingRule.enabled != rule.enabled ||
+            existingRule.name != rule.name ||
+            existingRule.category != rule.category ||
+            existingRule.severity != rule.severity ||
+            existingRule.conditionType != rule.conditionType ||
+            existingRule.parameters != rule.parameters ||
+            existingRule.message != rule.message ||
+            existingRule.remediation != rule.remediation ||
+            existingRule.sortOrder != rule.sortOrder ||
+            existingRule.seedSource != seededRuleSource
+
+        guard changed else { return false }
+
+        existingRule.enabled = rule.enabled
+        existingRule.name = rule.name
+        existingRule.category = rule.category
+        existingRule.severity = rule.severity
+        existingRule.conditionType = rule.conditionType
+        existingRule.parameters = rule.parameters
+        existingRule.message = rule.message
+        existingRule.remediation = rule.remediation
+        existingRule.seedSource = seededRuleSource
+        existingRule.sortOrder = rule.sortOrder
+        return true
     }
 
     private static func ruleRecord(from definition: RuleDefinition) -> RuleRecord {
@@ -45,6 +130,51 @@ enum RuleSeeder {
         )
     }
 
+    private static func signature(for rule: RuleRecord) -> RuleSignature {
+        RuleSignature(
+            name: rule.name,
+            category: rule.category,
+            severity: rule.severity,
+            conditionType: rule.conditionType,
+            seedSource: rule.seedSource,
+            sortOrder: rule.sortOrder,
+            parameters: rule.parameters,
+            message: rule.message,
+            remediation: rule.remediation
+        )
+    }
+
+    private static func shouldPrefer(_ first: RuleRecord, over second: RuleRecord) -> Bool {
+        if isSeeded(first), !isSeeded(second) {
+            return true
+        }
+        if !isSeeded(first), isSeeded(second) {
+            return false
+        }
+        let firstTime = first.lastMatchedAt ?? .distantPast
+        let secondTime = second.lastMatchedAt ?? .distantPast
+        if firstTime != secondTime {
+            return firstTime > secondTime
+        }
+        return first.id.uuidString < second.id.uuidString
+    }
+
+    private static func isSeeded(_ rule: RuleRecord) -> Bool {
+        rule.seedSource == seededRuleSource
+    }
+
+    private struct RuleSignature: Hashable {
+        let name: String
+        let category: RuleCategory
+        let severity: Severity
+        let conditionType: ConditionType
+        let seedSource: String
+        let sortOrder: Int
+        let parameters: RuleParameters
+        let message: String
+        let remediation: String
+    }
+
     static func seededRules() -> [RuleDefinition] {
         [
             RuleDefinition(
@@ -57,7 +187,7 @@ enum RuleSeeder {
                 parameters: RuleParameters(serviceKeys: ["screenSharing"]),
                 message: "Screen Sharing is enabled on this Mac, which exposes a direct path for someone else to view your screen if they can authenticate.",
                 remediation: "Turn off Screen Sharing in System Settings > General > Sharing unless you actively need it.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 10
             ),
             RuleDefinition(
@@ -70,7 +200,7 @@ enum RuleSeeder {
                 parameters: RuleParameters(serviceKeys: ["remoteManagement"]),
                 message: "Apple Remote Management appears to be enabled, which can permit remote observation or control of the Mac.",
                 remediation: "Turn off Remote Management unless it is intentionally managed.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 20
             ),
             RuleDefinition(
@@ -83,7 +213,7 @@ enum RuleSeeder {
                 parameters: RuleParameters(serviceKeys: ["remoteLogin"]),
                 message: "SSH-based remote login appears enabled. SSH can be a legitimate admin tool, but it also enables remote interactive access.",
                 remediation: "Disable Remote Login in System Settings > General > Sharing unless you actively need shell access from other machines.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 25
             ),
             RuleDefinition(
@@ -96,7 +226,7 @@ enum RuleSeeder {
                 parameters: RuleParameters(permissionKinds: [.screenRecording], requireTrustedExemption: true),
                 message: "An untrusted app currently has Screen Recording permission. That does not prove live viewing, but it is enough capability to capture your display.",
                 remediation: "Review System Settings > Privacy & Security > Screen Recording and revoke anything you do not trust.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 30
             ),
             RuleDefinition(
@@ -109,7 +239,7 @@ enum RuleSeeder {
                 parameters: RuleParameters(permissionKinds: [.microphone], requireTrustedExemption: true),
                 message: "An untrusted app currently has microphone access. This is a meaningful capture capability and should be reviewed.",
                 remediation: "Review microphone permissions and remove unknown apps from the allowlist.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 40
             ),
             RuleDefinition(
@@ -122,7 +252,7 @@ enum RuleSeeder {
                 parameters: RuleParameters(permissionKinds: [.camera], requireTrustedExemption: true),
                 message: "An untrusted app currently has camera access. This is not proof of active spying, but it means the app can capture video.",
                 remediation: "Review camera permissions and remove unknown apps from the allowlist.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 45
             ),
             RuleDefinition(
@@ -135,7 +265,7 @@ enum RuleSeeder {
                 parameters: RuleParameters(ports: [5900, 3389, 5938], requireTrustedExemption: true),
                 message: "A common remote-control server port is listening locally. That is materially stronger evidence than a passive permission grant.",
                 remediation: "Stop the service or app behind the listening port if you did not intentionally expose it.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 50
             ),
             RuleDefinition(
@@ -148,7 +278,7 @@ enum RuleSeeder {
                 parameters: RuleParameters(ports: [22], requireTrustedExemption: true),
                 message: "The SSH service is exposing a listening TCP 22 socket. SSH can be legitimate but materially increases remote access risk.",
                 remediation: "Disable Remote Login if you are not expecting inbound SSH, or restrict it with firewall and key-based controls.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 55
             ),
             RuleDefinition(
@@ -161,7 +291,7 @@ enum RuleSeeder {
                 parameters: RuleParameters(ports: [21114, 21115, 21116, 21117, 21118, 5800, 5801, 7070], requireTrustedExemption: true),
                 message: "A listener is active on a port commonly used by remote-access helper apps (AnyDesk, RustDesk, and related tools).",
                 remediation: "Verify the owning process in the system monitor and disable any unexpected service.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 58
             ),
             RuleDefinition(
@@ -179,7 +309,7 @@ enum RuleSeeder {
                 ),
                 message: "An outbound session on common remote-access ports is active. This may represent active screen or remote support activity.",
                 remediation: "Confirm each session is expected, including software and destination. Stop unrecognized sessions immediately.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 60
             ),
             RuleDefinition(
@@ -197,7 +327,7 @@ enum RuleSeeder {
                 ),
                 message: "An outbound VNC-style remote access session is active. This is typically user-driven support or screen-sharing activity.",
                 remediation: "Stop unknown outbound remote sessions and verify whether the connected peer is authorized.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 61
             ),
             RuleDefinition(
@@ -215,7 +345,7 @@ enum RuleSeeder {
                 ),
                 message: "An inbound remote-access-style connection is active. This is a stronger signal that another party may be interacting with this machine.",
                 remediation: "Terminate unexpected inbound sessions and verify local accounts, firewall policy, and trusted automation tools.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 62
             ),
             RuleDefinition(
@@ -233,7 +363,7 @@ enum RuleSeeder {
                 ),
                 message: "An outbound connection from a tunneling or support helper is active. This can indicate traffic being bridged to a remote operator.",
                 remediation: "Review the helper process and active sessions; stop/disable services that were not explicitly started by you.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 64
             ),
             RuleDefinition(
@@ -251,7 +381,7 @@ enum RuleSeeder {
                 ),
                 message: "A known remote-control tool is running. This does not automatically mean abuse, but it is strong enough to warrant attention.",
                 remediation: "Quit or remove the tool if you did not start it intentionally.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 70
             ),
             RuleDefinition(
@@ -268,7 +398,7 @@ enum RuleSeeder {
                 ),
                 message: "A process commonly used for local capture/recording is running, which can indicate covert recording if expected behavior is unclear.",
                 remediation: "Verify who launched it and whether it is actively recording or streaming.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 75
             ),
             RuleDefinition(
@@ -286,7 +416,7 @@ enum RuleSeeder {
                 ),
                 message: "A launch item or background service name matches common remote-access patterns. This is a heuristic warning, not proof of compromise.",
                 remediation: "Review the launch item and trust-list it if it is expected in your environment.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 80
             ),
             RuleDefinition(
@@ -299,7 +429,7 @@ enum RuleSeeder {
                 parameters: RuleParameters(ports: [4899], requireTrustedExemption: true),
                 message: "A process is listening on TCP 4899, frequently used by legacy remote-administration software.",
                 remediation: "Close the owner application and disable any remote-admin module unless it is explicitly required.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 81
             ),
             RuleDefinition(
@@ -318,7 +448,7 @@ enum RuleSeeder {
                 ),
                 message: "A legacy VNC daemon process is running. These services can expose live screen access depending on configuration.",
                 remediation: "Stop and remove legacy VNC services unless required for intentional remote administration.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 82
             ),
             RuleDefinition(
@@ -337,7 +467,7 @@ enum RuleSeeder {
                 ),
                 message: "A desktop capture or streaming helper is active. If unexpected, it could indicate covert recording or camera/screen forwarding.",
                 remediation: "Confirm this process is expected and check for active recording/streaming sessions.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 83
             ),
             RuleDefinition(
@@ -355,7 +485,7 @@ enum RuleSeeder {
                 ),
                 message: "An outbound relay/tunnel-style process has an active connection through common bypass ports.",
                 remediation: "Review tunnel processes and endpoints. Keep tunneling tools off unless you intentionally use them.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 84
             ),
             RuleDefinition(
@@ -374,7 +504,7 @@ enum RuleSeeder {
                 ),
                 message: "A process tied to remote-support infrastructure is currently running and may allow live operator access.",
                 remediation: "Quarantine unexpected remote-support processes and remove auto-start items.",
-                seedSource: "User-provided guidance",
+                seedSource: seededRuleSource,
                 sortOrder: 85
             )
         ]
