@@ -1,0 +1,83 @@
+platform :mac do
+  DEFAULT_SCHEME = "IntrusionIndicator"
+  SCREENSHOT_TESTS = [
+    "IntrusionIndicatorUITests/IntrusionIndicatorUITests/testScreenshot_HealthyStateOverview",
+    "IntrusionIndicatorUITests/IntrusionIndicatorUITests/testScreenshot_YellowRiskState",
+    "IntrusionIndicatorUITests/IntrusionIndicatorUITests/testScreenshot_RedRiskState",
+    "IntrusionIndicatorUITests/IntrusionIndicatorUITests/testScreenshot_PermissionGuidance",
+    "IntrusionIndicatorUITests/IntrusionIndicatorUITests/testScreenshot_RulesEditor"
+  ]
+  SCREENSHOT_RAW_DIR = "artifacts/screenshots/raw"
+  SCREENSHOT_OUTPUT_DIR = "artifacts/screenshots/en-US"
+
+  desc("Build and run all tests")
+  lane :test do
+    run_tests(
+      scheme: DEFAULT_SCHEME,
+      destination: "platform=macOS"
+    )
+  end
+
+  desc("Build App Store archive")
+  lane :build_appstore do
+    build_appstore_archive
+  end
+
+  desc("Capture and validate App Store screenshots")
+  lane :take_appstore_screenshots do
+    raw_dir = File.expand_path(SCREENSHOT_RAW_DIR)
+    output_dir = File.expand_path(SCREENSHOT_OUTPUT_DIR)
+    require "fileutils"
+    FileUtils.rm_rf(File.expand_path(File.dirname(SCREENSHOT_OUTPUT_DIR)))
+    FileUtils.mkdir_p(raw_dir)
+
+    run_tests(
+      scheme: DEFAULT_SCHEME,
+      destination: "platform=macOS",
+      output_directory: "artifacts/screenshots",
+      only_testing: SCREENSHOT_TESTS,
+      environment_variables: {
+        "II_SCREENSHOT_OUTPUT_DIR" => raw_dir
+      }
+    )
+
+    sh("bash scripts/generate_store_screenshot_report.sh \"#{raw_dir}\" \"#{output_dir}\"")
+  end
+
+  desc("Run full App Store release pipeline")
+  lane :release_appstore do
+    api_key = app_store_connect_api_key(
+      key_id: ENV["APP_STORE_KEY_ID"],
+      issuer_id: ENV["APP_STORE_ISSUER_ID"],
+      key_filepath: ENV["APP_STORE_API_KEY_PATH"]
+    )
+
+    build_appstore_archive
+    take_appstore_screenshots
+
+    upload_to_app_store(
+      app_identifier: ENV["APP_IDENTIFIER"],
+      app_platform: "osx",
+      submit_for_review: false,
+      skip_binary_upload: false,
+      skip_metadata: false,
+      skip_screenshots: false,
+      api_key: api_key,
+      force: true,
+      screenshots_path: SCREENSHOT_OUTPUT_DIR,
+      metadata_path: "fastlane/metadata",
+    )
+  end
+
+  private_lane :build_appstore_archive do
+    gym(
+      scheme: DEFAULT_SCHEME,
+      configuration: "Release",
+      destination: "generic/platform=macOS",
+      output_directory: "artifacts/build",
+      output_name: "IntrusionIndicator",
+      archive_path: "artifacts/build/IntrusionIndicator.xcarchive",
+      export_method: "app-store"
+    )
+  end
+end

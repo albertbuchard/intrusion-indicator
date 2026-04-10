@@ -1,0 +1,13 @@
+Intrusion Indicator is a native macOS menu-bar utility that continuously evaluates local system signals for potential exposure around screen capture, microphone, camera, and remote-access tooling.
+
+The app collects only local telemetry from process, service, permission, and network observers and evaluates it against editable, local rules. It then aggregates risk into green, yellow, and red states and surfaces the highest-severity signal in the menu bar.
+
+Rules and trust exceptions are editable in a local table editor:
+
+- Remote management and screen-sharing service state
+- Screen recording and media permissions
+- Active remote-control ports and sessions
+- Process and launch-agent behavior patterns
+- Trusted app/endpoint allowlists for controlled environments
+
+The app includes screenshot automation for App Store packaging so release captures stay reproducible.

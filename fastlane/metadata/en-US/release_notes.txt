@@ -1,0 +1,1 @@
+Added menu-bar color indicators, editable local risk rules, screenshot automation for App Store captures, and updated launch detection coverage.

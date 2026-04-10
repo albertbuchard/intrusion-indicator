@@ -1,0 +1,1 @@
+security,privacy,screen,monitoring,permissions,mac,menubar
